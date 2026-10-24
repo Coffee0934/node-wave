@@ -39,7 +39,8 @@ function comp:StartUndo() end
 function comp:EndUndo() end
 function comp:AddToolAction(id)
     assert(id=="Fuse.NodeWaveDeform")
-    local rig={Enabled=1}
+    local rig={Enabled=1, PointCount=2,
+        Root={X=0.5,Y=0.2}, Tip={X=0.5,Y=0.8}}
     rig.Phase={SetExpression=function(_, expression)
         rig.phaseExpression=expression
         rig.phaseValue=tonumber(expression:match("^([%+%-]?[%d%.]+)"))
@@ -54,7 +55,7 @@ function comp:AddToolAction(id)
     return rig
 end
 fu={UIManager=ui, GetCurrentComp=function() return comp end}
-function Point(x,y) return {x,y} end
+function Point(x,y) return {X=x,Y=y} end
 -- Check the preview path with both macOS and Windows-style environments.
 local path, platform=...
 assert(platform=="macOS" or platform=="Windows")
@@ -76,6 +77,23 @@ assert(items.Language.Text=="English")
 mockwin.On.CreateRig.Clicked()
 assert(mockrig and mockrig.Amplitude==0.08 and mockrig.Enabled==1)
 assert(mockrig.phaseExpression and mockrig.phaseExpression:find("time",1,true))
+assert(items.PointCountLabel.Text:find("2/6",1,true))
+mockwin.On.AddPoint.Clicked()
+assert(mockrig.PointCount==3 and mockrig.Joint1.X==0.5 and mockrig.Joint1.Y==0.5)
+assert(items.PointCountLabel.Text:find("3/6",1,true))
+mockrig.Joint1=Point(0.6,0.5)
+mockwin.On.AddPoint.Clicked()
+assert(mockrig.PointCount==4 and math.abs(mockrig.Joint2.X-0.55)<1e-12)
+mockwin.On.RemovePoint.Clicked()
+assert(mockrig.PointCount==3 and items.PointCountLabel.Text:find("3/6",1,true))
+for _=1,3 do mockwin.On.AddPoint.Clicked() end
+assert(mockrig.PointCount==6 and items.PointCountLabel.Text:find("6/6",1,true))
+mockwin.On.AddPoint.Clicked()
+assert(mockrig.PointCount==6, "joint limit must be enforced")
+for _=1,4 do mockwin.On.RemovePoint.Clicked() end
+assert(mockrig.PointCount==2)
+mockwin.On.RemovePoint.Clicked()
+assert(mockrig.PointCount==2, "Root and Tip must remain")
 assert(saves>=2 and items.Preview.HTML:find("<img",1,true))
 if platform=="Windows" then
     assert(savedPaths[1]:find("C:/Users/Test User/Temp#1/node-wave-preview-",1,true))
@@ -102,6 +120,7 @@ mockwin.On.Disable.Clicked()
 assert(mockrig.Enabled==0)
 mockwin.On.ResetRig.Clicked()
 assert(mockrig.Amplitude==0.08 and mockrig.Enabled==1 and mockrig.phaseValue==0)
+assert(mockrig.PointCount==2 and items.PointCountLabel.Text:find("2/6",1,true))
 mockwin.On.Remove.Clicked()
 assert(mockrig.deleted and items.Preview.HTML:find("리깅을 선택",1,true))
 print("controller_mock (" .. platform .. "): all checks passed")

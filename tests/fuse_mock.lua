@@ -4,9 +4,12 @@ local registeredAttrs
 function FuRegisterClass(_, _, attrs) registeredAttrs = attrs end
 self = {}
 function self:AddInput(_, id, attrs)
-    local input = {value = attrs.INP_Default}
+    local input = {value = attrs.INP_Default, attrs = attrs}
     if attrs.LINKID_DataType == "Point" then
         input.value = {X=attrs.INP_DefaultX, Y=attrs.INP_DefaultY}
+    end
+    function input:SetAttrs(values)
+        for key, value in pairs(values) do self.attrs[key] = value end
     end
     function input:GetValue()
         if id == "Input" then return self.value end
@@ -92,6 +95,53 @@ assert(math.abs(atZero-atTwentyFive)>0.01, "motion must change with frame")
 req.Time=0
 Process(req)
 assert(math.abs(atZero-OutImage.value.pixels[26][16].R)<1e-12, "scrubbing back must reproduce frame")
+
+-- Joint-chain mode uses viewer points without a mesh. Moving a joint must
+-- change the shape, while frame requests remain deterministic.
+InPointCount.value=4
+NotifyChanged(InPointCount, {Value=4}, 0)
+assert(InJoints[1].attrs.IC_Visible and InJoints[2].attrs.IC_Visible)
+assert(not InJoints[3].attrs.IC_Visible and not InJoints[4].attrs.IC_Visible)
+InJoints[1].value={X=0.5,Y=0.35}
+InJoints[2].value={X=0.5,Y=0.65}
+InAmplitude.value=0.2
+InFalloff.value=0.35
+InPhase.value=90
+req.Time=0
+Process(req)
+local straight=OutImage.value
+InJoints[1].value={X=0.25,Y=0.35}
+InJoints[2].value={X=0.75,Y=0.65}
+Process(req)
+local bent=OutImage.value
+local function imageDifference(a,b)
+    local total=0
+    for y=0,a.Height-1 do for x=0,a.Width-1 do
+        local pa,pb=a.pixels[y][x],b.pixels[y][x]
+        total=total+math.abs(pa.R-pb.R)+math.abs(pa.G-pb.G)+math.abs(pa.A-pb.A)
+    end end
+    return total
+end
+assert(imageDifference(straight,bent)>1, "joint placement must alter the deformation")
+assert(bent.pixels[3][16].R==source.pixels[3][16].R, "joint chain must keep root fixed")
+req.Time=25
+Process(req)
+local bentLater=OutImage.value
+assert(imageDifference(bent,bentLater)>1, "joint chain must animate over time")
+req.Time=0
+Process(req)
+assert(imageDifference(bent,OutImage.value)<1e-10, "joint chain must reproduce a frame")
+NotifyChanged(InPointCount, {Value=2}, 0)
+assert(not InJoints[1].attrs.IC_Visible and not InJoints[2].attrs.IC_Visible)
+InPointCount.value=6
+InJoints[1].value={X=0.5,Y=0.1} -- Coincident with Root: skipped safely.
+InJoints[2].value={X=0.3,Y=0.35}
+InJoints[3].value={X=0.7,Y=0.55}
+InJoints[4].value={X=0.5,Y=0.75}
+req.Time=12
+Process(req)
+assert(OutImage.value ~= source, "six-point chain must render")
+InPointCount.value=2
 InEnabled.value=0
 Process(req)
 assert(OutImage.value == source, "disabled rig must bypass")
