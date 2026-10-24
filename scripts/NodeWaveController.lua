@@ -1,4 +1,4 @@
--- Node Wave 2.3.0 preview: bilingual joint rig controller with on-demand preview.
+-- Node Wave 2.2.2: script-first, bilingual controller with an on-demand media preview.
 local fusion = fu or fusion
 if not fusion then error("Node Wave: Fusion is unavailable") end
 local ui = fusion.UIManager
@@ -25,13 +25,7 @@ local strings = {
         language="English", setup="시작", motion="움직임", behavior="움직임 성질", region="변형 범위",
         presets="빠른 설정", actions="리깅 관리", preview="미디어 미리보기",
         intro="이미지 노드를 선택하고 리깅 만들기를 누르세요.",
-        pointHelp="Root·관절·Tip을 Fusion 뷰어에서 끌어 배치하세요.",
-        addPoint="관절 추가", removePoint="마지막 관절 제거", pointCount="활성 포인트",
-        pointAdded="관절을 추가했습니다. 뷰어에서 위치를 조절하세요.",
-        pointRemoved="마지막 관절을 제거했습니다.",
-        pointLimit="관절은 최대 4개까지 추가할 수 있습니다.",
-        pointMinimum="Root와 Tip은 제거할 수 없습니다.",
-        engineUpdate="새 변형 엔진을 설치하고 Resolve를 다시 실행해야 합니다.",
+        pointHelp="Root/Tip: Fusion 뷰어에서 조절",
         motionHelp="흔들림의 크기, 횟수와 방향을 정합니다.",
         behaviorHelp="탄성과 불규칙한 움직임을 조절합니다.",
         regionHelp="고정할 부분과 휘어지는 범위를 정합니다.",
@@ -58,13 +52,7 @@ local strings = {
         language="한국어", setup="SETUP", motion="MOTION", behavior="BEHAVIOR", region="REGION",
         presets="PRESETS", actions="ACTIONS", preview="MEDIA PREVIEW",
         intro="Select an image-producing node, then choose Create Rig.",
-        pointHelp="Drag Root, joints and Tip in Fusion Viewer.",
-        addPoint="Add Joint", removePoint="Remove Last Joint", pointCount="Active points",
-        pointAdded="Joint added. Position it in the Viewer.",
-        pointRemoved="Last joint removed.",
-        pointLimit="You can add up to four joints.",
-        pointMinimum="Root and Tip cannot be removed.",
-        engineUpdate="Install the new deformation engine, then relaunch Resolve.",
+        pointHelp="Drag Root/Tip in Fusion Viewer.",
         motionHelp="Set sway size and direction.",
         behaviorHelp="Adjust spring and variation.",
         regionHelp="Set the fixed area and bend range.",
@@ -136,11 +124,11 @@ local function fieldRow(key, default)
         ui:LineEdit{ID=key, Text=tostring(default), Weight=0.45}}
 end
 local function heading(id, value) return ui:Label{ID=id, Text=value, Weight=0} end
-local win = disp:AddWindow({ID="NodeWaveWindow", WindowTitle="Node Wave 2.3.0 preview",
-    Geometry={70, 70, 940, 565}, Spacing=5},
+local win = disp:AddWindow({ID="NodeWaveWindow", WindowTitle="Node Wave 2.2.2",
+    Geometry={70, 70, 900, 520}, Spacing=5},
     ui:VGroup{ID="Root", Spacing=3,
         ui:HGroup{Weight=0,
-            ui:Label{ID="Title", Text="Node Wave 2.3.0 preview", Weight=1},
+            ui:Label{ID="Title", Text="Node Wave 2.2.2", Weight=1},
             ui:Button{ID="Language", Text="English", Weight=0}},
         ui:HGroup{Spacing=8,
             ui:VGroup{Weight=1, Spacing=2,
@@ -159,10 +147,6 @@ local win = disp:AddWindow({ID="NodeWaveWindow", WindowTitle="Node Wave 2.3.0 pr
                 ui:HGroup{Weight=0,
                     ui:Button{ID="CreateRig", Text=strings.ko.create},
                     ui:Button{ID="SelectRig", Text=strings.ko.select}},
-                ui:HGroup{Weight=0,
-                    ui:Button{ID="AddPoint", Text=strings.ko.addPoint},
-                    ui:Button{ID="RemovePoint", Text=strings.ko.removePoint}},
-                heading("PointCountLabel", strings.ko.pointCount .. " 2/6"),
                 ui:Button{ID="ResetRig", Text=strings.ko.reset, Weight=0},
                 heading("PointHelp", strings.ko.pointHelp),
                 heading("PresetsHead", strings.ko.presets),
@@ -201,19 +185,6 @@ local lastStatus = "intro"
 local function status(key, suffix)
     lastStatus = key
     items.Status.Text = (strings[locale][key] or key) .. (suffix or "")
-end
-local function rigPointCount(tool, c)
-    if not tool or not c then return nil end
-    local ok, value = pcall(tool.GetInput, tool, "PointCount", c.CurrentTime)
-    if not ok or type(value) ~= "number" then return nil end
-    return math.max(2, math.min(6, math.floor(value + 0.5)))
-end
-local function updatePointLabel(count)
-    items.PointCountLabel.Text = strings[locale].pointCount .. " " .. tostring(count or 2) .. "/6"
-end
-local function pointXY(value)
-    if not value then return nil, nil end
-    return value.X or value[1], value.Y or value[2]
 end
 local function clearPreview()
     for _, path in pairs(previewFiles) do os.remove(path) end
@@ -279,7 +250,6 @@ local function loadRig()
         if type(value) == "number" then items[f[1]].Text = string.format("%.4g", value) end
     end
     items.Frame.Text = tostring(math.floor(c.CurrentTime))
-    updatePointLabel(rigPointCount(tool, c))
     status("selected")
     refreshPreview(true)
 end
@@ -326,14 +296,12 @@ local function updateLanguage()
         {"PresetsHead","presets"},{"ActionsHead","actions"},
         {"PreviewHead","preview"},{"PreviewHelp","previewHelp"},
         {"CreateRig","create"},{"SelectRig","select"},{"ResetRig","reset"},
-        {"AddPoint","addPoint"},{"RemovePoint","removePoint"},
         {"Apply","apply"},{"Update","update"},{"Disable","disable"},{"Remove","remove"},
         {"Gentle","gentle"},{"Wind","wind"},{"Elastic","elastic"},
         {"Floating","floating"},{"Custom","custom"},
         {"Original","original"},{"Result","result"},{"FrameLabel","frame"},{"Refresh","refresh"},
     }) do items[pair[1]].Text = t[pair[2]] end
     for _, f in ipairs(fields) do items["Label_" .. f[1]].Text = t[f[1]] end
-    updatePointLabel(rigPointCount(selectedRig(), currentComp()))
     status(lastStatus)
     showPreview()
 end
@@ -353,41 +321,9 @@ function win.On.CreateRig.Clicked()
     rig = newRig
     c:EndUndo(true)
     applyValues()
-    updatePointLabel(rigPointCount(newRig, c))
     status("created")
 end
 function win.On.SelectRig.Clicked() loadRig() end
-function win.On.AddPoint.Clicked()
-    local tool, c = selectedRig(), currentComp()
-    if not tool or not c then status("noRig"); return end
-    local count = rigPointCount(tool, c)
-    if not count then status("engineUpdate"); return end
-    if count >= 6 then status("pointLimit"); return end
-    local previousID = count == 2 and "Root" or "Joint" .. (count - 2)
-    local px, py = pointXY(tool:GetInput(previousID, c.CurrentTime))
-    local tx, ty = pointXY(tool:GetInput("Tip", c.CurrentTime))
-    if not px or not py or not tx or not ty then status("engineUpdate"); return end
-    c:StartUndo("Node Wave Add Joint")
-    tool["Joint" .. (count - 1)] = Point((px + tx) / 2, (py + ty) / 2)
-    tool.PointCount = count + 1
-    c:EndUndo(true)
-    updatePointLabel(count + 1)
-    status("pointAdded")
-    refreshPreview(true)
-end
-function win.On.RemovePoint.Clicked()
-    local tool, c = selectedRig(), currentComp()
-    if not tool or not c then status("noRig"); return end
-    local count = rigPointCount(tool, c)
-    if not count then status("engineUpdate"); return end
-    if count <= 2 then status("pointMinimum"); return end
-    c:StartUndo("Node Wave Remove Joint")
-    tool.PointCount = count - 1
-    c:EndUndo(true)
-    updatePointLabel(count - 1)
-    status("pointRemoved")
-    refreshPreview(true)
-end
 function win.On.ResetRig.Clicked()
     local tool, c = selectedRig(), currentComp()
     if not tool or not c then status("noRig"); return end
@@ -399,13 +335,8 @@ function win.On.ResetRig.Clicked()
     setPhase(tool, 0)
     tool.Root = Point(0.5, 0.2)
     tool.Tip = Point(0.5, 0.8)
-    if rigPointCount(tool, c) then
-        for i = 1, 4 do tool["Joint" .. i] = Point(0.5, 0.2 + 0.12 * i) end
-        tool.PointCount = 2
-    end
     tool.Enabled = 1
     c:EndUndo(true)
-    updatePointLabel(2)
     status("resetDone")
     refreshPreview(true)
 end

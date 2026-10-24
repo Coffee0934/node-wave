@@ -1,12 +1,12 @@
--- Node Wave 2.3.0 preview: lightweight joint-chain deformation without a mesh.
+-- Node Wave 2.2.2, two-point deform prototype.
 -- Coordinates use Fusion's normalized, bottom-left-origin Viewer space.
 FuRegisterClass("NodeWaveDeform", CT_Tool, {
     REGS_Name = "Node Wave Deform",
     REGS_Category = "Fuses\\Node Wave",
     REGS_OpIconString = "NWv",
-    REGS_OpDescription = "Root, joint and tip image sway without a mesh",
+    REGS_OpDescription = "Two-point, keyframe-free image sway",
     REG_TimeVariant = true, -- req.Time drives motion even when the source is a still image.
-    REG_Version = 3,
+    REG_Version = 2,
 })
 
 local function slider(label, id, default, low, high)
@@ -26,20 +26,6 @@ function Create()
         LINKID_DataType = "Point", INPID_InputControl = "OffsetControl",
         INPID_PreviewControl = "CrosshairControl", INP_DefaultX = 0.5, INP_DefaultY = 0.2,
     })
-    InPointCount = self:AddInput("Active Points", "PointCount", {
-        LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
-        INP_Default = 2, INP_MinScale = 2, INP_MaxScale = 6,
-        INP_Integer = true, INP_DoNotifyChanged = true,
-    })
-    InJoints = {}
-    for i = 1, 4 do
-        InJoints[i] = self:AddInput("Joint " .. i, "Joint" .. i, {
-            LINKID_DataType = "Point", INPID_InputControl = "OffsetControl",
-            INPID_PreviewControl = "CrosshairControl",
-            INP_DefaultX = 0.5, INP_DefaultY = 0.2 + 0.12 * i,
-            IC_Visible = false,
-        })
-    end
     InTip = self:AddInput("Tip", "Tip", {
         LINKID_DataType = "Point", INPID_InputControl = "OffsetControl",
         INPID_PreviewControl = "CrosshairControl", INP_DefaultX = 0.5, INP_DefaultY = 0.8,
@@ -78,146 +64,6 @@ local function smooth01(t)
     return t * t * (3 - 2 * t)
 end
 
-local sqrt = math.sqrt
-local ceil = math.ceil
-
--- Fusion creates the point controls once. PointCount selects the active ones,
--- so adding a joint does not rebuild the node or create a mesh.
-function NotifyChanged(inp, param, time)
-    if inp ~= InPointCount or not InJoints then return end
-    local count = max(2, min(6, floor((param and param.Value or 2) + 0.5)))
-    for i = 1, 4 do
-        InJoints[i]:SetAttrs({IC_Visible = i <= count - 2})
-    end
-end
-
-local function processJointChain(req, img, root, tip, w, h, count, amplitude, tipInfluence)
-    local raw = {{x = root.X * (w - 1), y = root.Y * (h - 1)}}
-    for i = 1, count - 2 do
-        local point = InJoints[i]:GetValue(req)
-        raw[#raw + 1] = {x = point.X * (w - 1), y = point.Y * (h - 1)}
-    end
-    raw[#raw + 1] = {x = tip.X * (w - 1), y = tip.Y * (h - 1)}
-
-    -- Ignore coincident joints rather than dividing by a zero-length segment.
-    local points = {raw[1]}
-    for i = 2, #raw do
-        local previous = points[#points]
-        local dx, dy = raw[i].x - previous.x, raw[i].y - previous.y
-        if dx * dx + dy * dy >= 4 then points[#points + 1] = raw[i] end
-    end
-    if #points < 2 then OutImage:Set(req, img); return end
-
-    local segments, length = {}, 0
-    for i = 1, #points - 1 do
-        local dx = points[i + 1].x - points[i].x
-        local dy = points[i + 1].y - points[i].y
-        local segmentLength = sqrt(dx * dx + dy * dy)
-        segments[i] = {dx = dx, dy = dy, length = segmentLength,
-            invLengthSq = 1 / (dx * dx + dy * dy), cumulative = length,
-            ux = dx / segmentLength, uy = dy / segmentLength}
-        length = length + segmentLength
-    end
-
-    local angle = InDirection:GetValue(req).Value * pi / 180
-    local cosAngle, sinAngle = cos(angle), sin(angle)
-    local frequency = max(0, InFrequency:GetValue(req).Value)
-    local speed = max(0, InSpeed:GetValue(req).Value)
-    local phase = InPhase:GetValue(req).Value * pi / 180
-    local stiffness = min(1, max(0, InStiffness:GetValue(req).Value))
-    local damping = min(1, max(0, InDamping:GetValue(req).Value))
-    local delay = max(0, InFollowDelay:GetValue(req).Value)
-    local irregularity = min(1, max(0, InIrregularity:GetValue(req).Value))
-    local lock = min(0.8, max(0, InRootLock:GetValue(req).Value))
-    local bend = max(0, InBendAmount:GetValue(req).Value)
-    local radius = max(2, InFalloff:GetValue(req).Value * length)
-    local radiusSq = radius * radius
-    local magnitude = length * amplitude * tipInfluence * (1 - 0.65 * damping)
-    local omega = 2 * pi * frequency * speed * req.Time / 100 + phase
-    local harmonic = 0.35 * irregularity * (1 - damping)
-    local exponent = 1 + 2 * stiffness + bend
-
-    -- Each joint has its own wave phase. The root stays fixed. These values
-    -- are calculated once per frame, not once per pixel.
-    for i = 1, #points do
-        local before, after = segments[i - 1], segments[i]
-        local ux, uy
-        if before and after then
-            ux, uy = before.ux + after.ux, before.uy + after.uy
-            local norm = sqrt(ux * ux + uy * uy)
-            if norm > 0.0001 then ux, uy = ux / norm, uy / norm
-            else ux, uy = after.ux, after.uy end
-        else
-            local segment = before or after
-            ux, uy = segment.ux, segment.uy
-        end
-        local normalX, normalY = -uy, ux
-        local moveX = normalX * cosAngle + ux * sinAngle
-        local moveY = normalY * cosAngle + uy * sinAngle
-        local along = (before and before.cumulative + before.length or 0) / length
-        local lag = delay * along
-        local wave = sin(omega - lag) + harmonic * sin(omega * 1.73 - lag * 1.31 + 1.7)
-        points[i].shiftX = i == 1 and 0 or magnitude * wave * moveX
-        points[i].shiftY = i == 1 and 0 or magnitude * wave * moveY
-    end
-
-    -- A segment's radius box is a conservative bound for every pixel it can
-    -- affect. Skipping other segments reduces work without changing output.
-    for i = 1, #segments do
-        local segment = segments[i]
-        segment.minx = min(points[i].x, points[i + 1].x) - radius
-        segment.maxx = max(points[i].x, points[i + 1].x) + radius
-        segment.miny = min(points[i].y, points[i + 1].y) - radius
-        segment.maxy = max(points[i].y, points[i + 1].y) + radius
-    end
-    local extent = radius + 2
-    local minx, miny, maxx, maxy = w - 1, h - 1, 0, 0
-    for i = 1, #points do
-        local point = points[i]
-        minx, miny = min(minx, point.x), min(miny, point.y)
-        maxx, maxy = max(maxx, point.x), max(maxy, point.y)
-    end
-    minx, miny = max(0, floor(minx - extent)), max(0, floor(miny - extent))
-    maxx, maxy = min(w - 1, ceil(maxx + extent)), min(h - 1, ceil(maxy + extent))
-
-    local out = img:Copy()
-    local sample = Pixel()
-    for y = miny, maxy do
-        for x = minx, maxx do
-            local nearestSq, nearestIndex, nearestT = radiusSq, nil, 0
-            for i = 1, #segments do
-                local segment = segments[i]
-                if x >= segment.minx and x <= segment.maxx and
-                    y >= segment.miny and y <= segment.maxy then
-                    local px, py = x - points[i].x, y - points[i].y
-                    local t = min(1, max(0, (px * segment.dx + py * segment.dy) * segment.invLengthSq))
-                    local sideX, sideY = px - t * segment.dx, py - t * segment.dy
-                    local distanceSq = sideX * sideX + sideY * sideY
-                    if distanceSq < nearestSq then
-                        nearestSq, nearestIndex, nearestT = distanceSq, i, t
-                    end
-                end
-            end
-            if nearestIndex then
-                local segment = segments[nearestIndex]
-                local along = (segment.cumulative + nearestT * segment.length) / length
-                if along > lock then
-                    local progress = smooth01((along - lock) / (1 - lock))
-                    local weight = pow(progress, exponent) * (1 - smooth01(sqrt(nearestSq) / radius))
-                    if weight > 0 then
-                        local a, b = points[nearestIndex], points[nearestIndex + 1]
-                        local shiftX = (a.shiftX * (1 - nearestT) + b.shiftX * nearestT) * weight
-                        local shiftY = (a.shiftY * (1 - nearestT) + b.shiftY * nearestT) * weight
-                        img:SamplePixelB(x - shiftX, y - shiftY, sample)
-                        out:SetPixel(x, y, sample)
-                    end
-                end
-            end
-        end
-    end
-    OutImage:Set(req, out)
-end
-
 function Process(req)
     local img = InImage:GetValue(req)
     if not img then OutImage:Set(req, nil); return end
@@ -232,20 +78,14 @@ function Process(req)
     if w < 2 or h < 2 then OutImage:Set(req, img); return end
     local rx, ry = root.X * (w - 1), root.Y * (h - 1)
     local tx, ty = tip.X * (w - 1), tip.Y * (h - 1)
+    local dx, dy = tx - rx, ty - ry
+    local len = math.sqrt(dx * dx + dy * dy)
     local amplitude = max(0, InAmplitude:GetValue(req).Value)
     local tipInfluence = max(0, InTipInfluence:GetValue(req).Value)
-    if amplitude == 0 or tipInfluence == 0 then
+    if len < 2 or amplitude == 0 or tipInfluence == 0 then
         OutImage:Set(req, img)
         return
     end
-    local count = max(2, min(6, floor(InPointCount:GetValue(req).Value + 0.5)))
-    if count > 2 then
-        processJointChain(req, img, root, tip, w, h, count, amplitude, tipInfluence)
-        return
-    end
-    local dx, dy = tx - rx, ty - ry
-    local len = math.sqrt(dx * dx + dy * dy)
-    if len < 2 then OutImage:Set(req, img); return end
 
     local ux, uy = dx / len, dy / len
     local nx, ny = -uy, ux
