@@ -5,7 +5,7 @@ Node Wave는 DaVinci Resolve Fusion에서 이미지 출력 노드에 Root·Tip �
 ## 배포 파일
 
 - [macOS 배포 ZIP 다운로드](dist/macOS/NodeWave-2.2.2-macOS.zip?raw=1) — `docs/MACOS_INSTALL.md` 포함
-- [Windows / DaVinci Resolve 18 배포 ZIP 다운로드](dist/Windows/NodeWave-2.2.2-Windows.zip?raw=1) — `docs/WINDOWS_18_INSTALL.md` 포함
+- [Windows 배포 ZIP 다운로드](dist/Windows/Windows-NodeWave-2.2.2.zip?raw=1) — DaVinci Resolve 18 이상, `docs/Windows-NodeWave-2.2.2.md` 포함
 
 두 ZIP은 같은 변형 엔진과 전용 창을 사용합니다. 운영체제에 맞는 설치 안내만 다릅니다. 성능 모드나 화질 차이는 없습니다.
 
@@ -25,7 +25,7 @@ Root·Tip 포인트, 고정 영역, 휘어짐, 진폭·빈도·속도·방향·�
 
 ## 검증과 제한
 
-`python3 tests/run_lua_tests.py`로 Fuse·스크립트 문법, 변형 흐름, macOS·Windows 경로 모의 테스트를 확인합니다. macOS Resolve 19.0.3에서는 이전 Node Wave 2.2 계열의 시간에 따른 출력 변화를 확인했습니다. 실제 Windows Resolve 18 실행 검증은 아직 완료되지 않았습니다. 다중 포인트, Object Mode, 저사양 노트북 벤치마크는 미완료입니다.
+`python3 tests/run_lua_tests.py`로 Fuse·스크립트 문법, 변형 흐름, macOS·Windows 경로 모의 테스트를 확인합니다. macOS Resolve 19.0.3에서는 이전 Node Wave 2.2 계열의 시간에 따른 출력 변화를 확인했습니다. 실제 Windows Resolve 실행 검증은 아직 완료되지 않았습니다. 다중 포인트, Object Mode, 저사양 노트북 벤치마크는 미완료입니다.
 
 개발용 예제 `examples/NodeWaveTwoPoint.comp`는 개인 Mac 경로와 Resolve 캐시 정보를 포함하므로 공개 저장소와 배포 ZIP에서 제외합니다.
 
