@@ -1,0 +1,143 @@
+-- Node Wave 2.2.2, two-point deform prototype.
+-- Coordinates use Fusion's normalized, bottom-left-origin Viewer space.
+FuRegisterClass("NodeWaveDeform", CT_Tool, {
+    REGS_Name = "Node Wave Deform",
+    REGS_Category = "Fuses\\Node Wave",
+    REGS_OpIconString = "NWv",
+    REGS_OpDescription = "Two-point, keyframe-free image sway",
+    REG_TimeVariant = true, -- req.Time drives motion even when the source is a still image.
+    REG_Version = 2,
+})
+
+local function slider(label, id, default, low, high)
+    return self:AddInput(label, id, {
+        LINKID_DataType = "Number",
+        INPID_InputControl = "SliderControl",
+        INP_Default = default,
+        INP_MinScale = low,
+        INP_MaxScale = high,
+    })
+end
+
+function Create()
+    InImage = self:AddInput("Input", "Input", {LINKID_DataType = "Image", LINK_Main = 1})
+    OutImage = self:AddOutput("Output", "Output", {LINKID_DataType = "Image", LINK_Main = 1})
+    InRoot = self:AddInput("Root", "Root", {
+        LINKID_DataType = "Point", INPID_InputControl = "OffsetControl",
+        INPID_PreviewControl = "CrosshairControl", INP_DefaultX = 0.5, INP_DefaultY = 0.2,
+    })
+    InTip = self:AddInput("Tip", "Tip", {
+        LINKID_DataType = "Point", INPID_InputControl = "OffsetControl",
+        INPID_PreviewControl = "CrosshairControl", INP_DefaultX = 0.5, INP_DefaultY = 0.8,
+    })
+    InEnabled = self:AddInput("Enabled", "Enabled", {
+        LINKID_DataType = "Number", INPID_InputControl = "CheckboxControl",
+        INP_Default = 1, INP_Integer = true,
+    })
+    InAmplitude = slider("Amplitude", "Amplitude", 0.08, 0, 0.4)
+    InFrequency = slider("Frequency (cycles / 100 frames)", "Frequency", 1.0, 0, 10)
+    InSpeed = slider("Speed", "Speed", 1.0, 0, 4)
+    InDirection = slider("Direction (degrees from perpendicular)", "Direction", 0, -75, 75)
+    InPhase = slider("Phase (degrees)", "Phase", 0, -360, 360)
+    InStiffness = slider("Stiffness", "Stiffness", 0.5, 0, 1)
+    InDamping = slider("Damping", "Damping", 0.15, 0, 1)
+    InFollowDelay = slider("Follow Delay (radians)", "FollowDelay", 0.6, 0, 6.28)
+    InIrregularity = slider("Irregularity", "Irregularity", 0.12, 0, 1)
+    InRootLock = slider("Root Lock", "RootLock", 0.2, 0, 0.8)
+    InTipInfluence = slider("Tip Influence", "TipInfluence", 1, 0, 2)
+    InBendAmount = slider("Bend Amount", "BendAmount", 0.7, 0, 2)
+    InFalloff = slider("Falloff (relative width)", "Falloff", 0.25, 0.02, 1)
+end
+
+local pi = math.pi
+local sin = math.sin
+local cos = math.cos
+local abs = math.abs
+local max = math.max
+local min = math.min
+local floor = math.floor
+local pow = math.pow
+
+local function smooth01(t)
+    if t <= 0 then return 0 end
+    if t >= 1 then return 1 end
+    return t * t * (3 - 2 * t)
+end
+
+function Process(req)
+    local img = InImage:GetValue(req)
+    if not img then OutImage:Set(req, nil); return end
+    if req:IsPreCalc() or InEnabled:GetValue(req).Value < 0.5 then
+        OutImage:Set(req, img)
+        return
+    end
+
+    local root = InRoot:GetValue(req)
+    local tip = InTip:GetValue(req)
+    local w, h = img.Width, img.Height
+    if w < 2 or h < 2 then OutImage:Set(req, img); return end
+    local rx, ry = root.X * (w - 1), root.Y * (h - 1)
+    local tx, ty = tip.X * (w - 1), tip.Y * (h - 1)
+    local dx, dy = tx - rx, ty - ry
+    local len = math.sqrt(dx * dx + dy * dy)
+    local amplitude = max(0, InAmplitude:GetValue(req).Value)
+    local tipInfluence = max(0, InTipInfluence:GetValue(req).Value)
+    if len < 2 or amplitude == 0 or tipInfluence == 0 then
+        OutImage:Set(req, img)
+        return
+    end
+
+    local ux, uy = dx / len, dy / len
+    local nx, ny = -uy, ux
+    local angle = InDirection:GetValue(req).Value * pi / 180
+    local mx = nx * cos(angle) + ux * sin(angle)
+    local my = ny * cos(angle) + uy * sin(angle)
+    local frequency = max(0, InFrequency:GetValue(req).Value)
+    local speed = max(0, InSpeed:GetValue(req).Value)
+    local phase = InPhase:GetValue(req).Value * pi / 180
+    local stiffness = min(1, max(0, InStiffness:GetValue(req).Value))
+    local damping = min(1, max(0, InDamping:GetValue(req).Value))
+    local delay = max(0, InFollowDelay:GetValue(req).Value)
+    local irregularity = min(1, max(0, InIrregularity:GetValue(req).Value))
+    local lock = min(0.8, max(0, InRootLock:GetValue(req).Value))
+    local bend = max(0, InBendAmount:GetValue(req).Value)
+    local radius = max(2, InFalloff:GetValue(req).Value * len)
+    local magnitude = len * amplitude * tipInfluence * (1 - 0.65 * damping)
+    local omega = 2 * pi * frequency * speed * req.Time / 100 + phase
+    local harmonic = 0.35 * irregularity * (1 - damping)
+    local reach = max(0.08, amplitude * tipInfluence * 1.5)
+    local exponent = 1 + 2 * stiffness + bend
+    local out = img:Copy()
+    local sample = Pixel()
+    local lateralExtent = radius + magnitude * (1 + harmonic) + 2
+    local ex, ey = tx + ux * len * reach, ty + uy * len * reach
+    local minx = max(0, floor(min(rx, ex) - lateralExtent))
+    local maxx = min(w - 1, math.ceil(max(rx, ex) + lateralExtent))
+    local miny = max(0, floor(min(ry, ey) - lateralExtent))
+    local maxy = min(h - 1, math.ceil(max(ry, ey) + lateralExtent))
+
+    for y = miny, maxy do
+        local py = y - ry
+        for x = minx, maxx do
+            local px = x - rx
+            local along = (px * ux + py * uy) / len
+            if along > lock and along < 1 + reach then
+                local side = px * nx + py * ny
+                local lateral = abs(side) / radius
+                if lateral < 1 then
+                    local progress = smooth01((along - lock) / max(0.0001, 1 - lock))
+                    local bendWeight = pow(progress, exponent)
+                    local tipFade = 1
+                    if along > 1 then tipFade = 1 - smooth01((along - 1) / reach) end
+                    local edgeWeight = 1 - smooth01(lateral)
+                    local lag = delay * along
+                    local wave = sin(omega - lag) + harmonic * sin(omega * 1.73 - lag * 1.31 + 1.7)
+                    local shift = magnitude * bendWeight * tipFade * edgeWeight * wave
+                    img:SamplePixelB(x - mx * shift, y - my * shift, sample)
+                    out:SetPixel(x, y, sample)
+                end
+            end
+        end
+    end
+    OutImage:Set(req, out)
+end

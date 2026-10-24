@@ -1,0 +1,12 @@
+# Local Finder and tool files
+.DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Historical release packages and local-only Resolve composition
+dist/archive/
+examples/NodeWaveTwoPoint.comp
+
+# Local development notes
+docs/STATUS.md
