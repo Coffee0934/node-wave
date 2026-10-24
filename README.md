@@ -1,13 +1,13 @@
-# Node Wave 2.2.2 — Fusion 2포인트 자동 흔들림
+# Node Wave 2.2.2 
 
-Node Wave는 DaVinci Resolve Fusion에서 이미지 출력 노드에 Root·Tip 리깅을 붙여, 키프레임 없이 실제 이미지 휘어짐을 만드는 플러그인입니다. MediaIn, Loader, 투명 PNG, Text+ 같은 2D 이미지 출력에 적용합니다. 오디오 전용 노드와 3D 데이터 출력에는 적용되지 않습니다.
+Node Wave는 DaVinci Resolve Fusion에서 이미지 출력 노드에 Root·Tip 리깅을 붙여, 키프레임 없이 실제 이미지 휘어짐을 만드는 플러그인입니다. MediaIn, Loader, 투명 PNG, Text+ 같은 2D 이미지 출력에 적용합니다. 오디오 전용 노드와 3D 데이터 출력에는 적용되지 않습니다
 
 ## 배포 파일
 
 - [macOS 배포 ZIP 다운로드](dist/macOS/NodeWave-2.2.2-macOS.zip?raw=1) — `docs/MACOS_INSTALL.md` 포함
 - [Windows 배포 ZIP 다운로드](dist/Windows/Windows-NodeWave-2.2.2.zip?raw=1) — DaVinci Resolve 18 이상, `docs/Windows-NodeWave-2.2.2.md` 포함
 
-두 ZIP은 같은 변형 엔진과 전용 창을 사용합니다. 운영체제에 맞는 설치 안내만 다릅니다. 성능 모드나 화질 차이는 없습니다.
+두 ZIP은 같은 변형 엔진과 전용 창을 사용합니다. 운영체제에 맞는 설치 안내만 다릅니다. 성능 모드나 화질 차이는 없습니다
 
 ## 기본 사용법
 
@@ -16,8 +16,6 @@ Node Wave는 DaVinci Resolve Fusion에서 이미지 출력 노드에 Root·Tip �
 3. 생성된 Node Wave Deform을 Viewer에 띄워 Root와 Tip을 조절합니다.
 4. 전용 창에서 값을 바꾸고 **설정 적용**을 누릅니다. 원본·결과 미리보기와 프레임 새로고침으로 비교할 수 있습니다.
 5. 오른쪽 위 버튼으로 한국어와 영어를 전환할 수 있습니다.
-
-`.setting` 매크로는 사용하지 않습니다. 전용 창은 `scripts/NodeWaveController.lua`, 실제 변형 엔진은 `fuses/NodeWaveDeform.fuse`입니다. 두 파일이 모두 필요합니다. 리깅 값은 노드에 저장되므로 창을 닫아도 결과가 유지됩니다.
 
 ## 기능과 성능
 
