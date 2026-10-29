@@ -32,12 +32,6 @@ Node Wave는 DaVinci Resolve Fusion에서 이미지 출력 노드에 Root·Tip �
 
 Root·Tip 포인트, 고정 영역, 휘어짐, 진폭·빈도·속도·방향·위상, 탄성·감쇠·지연·불규칙성, 프리셋 4개를 제공합니다. 엔진은 변형 영향 영역만 재샘플링하고 변형이 없으면 입력을 통과시킵니다. 미리보기는 요청할 때만 새로 만들며 창을 닫을 때 임시 이미지를 지웁니다. macOS에서는 `TMPDIR`, Windows에서는 `%TEMP%`를 우선 사용합니다. 자동 최적화가 움직임이나 최종 렌더 품질을 바꾸지 않습니다.
 
-## 검증과 제한
-
-`python3 tests/run_lua_tests.py`로 Fuse·스크립트 문법, 변형 흐름, macOS·Windows 경로 모의 테스트를 확인합니다. macOS Resolve 19.0.3에서는 이전 Node Wave 2.2 계열의 시간에 따른 출력 변화를 확인했습니다. 실제 Windows Resolve 실행 검증은 아직 완료되지 않았습니다. 다중 포인트, Object Mode, 저사양 노트북 벤치마크는 미완료입니다.
-
-개발용 예제 `examples/NodeWaveTwoPoint.comp`는 개인 Mac 경로와 Resolve 캐시 정보를 포함하므로 공개 저장소와 배포 ZIP에서 제외합니다.
-
 ## 참고
 
 - [Blackmagic Fusion Fuse SDK](https://documents.blackmagicdesign.com/UserManuals/Fusion_Fuse_SDK.pdf)
