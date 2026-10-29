@@ -6,8 +6,8 @@ Node Wave는 DaVinci Resolve Fusion에서 이미지 출력 노드에 Root·Tip �
 
 | 운영체제 · 플러그인 · 버전 | 배포 파일 | 설치 안내 |
 | --- | --- | --- |
-| 🍎 **macOS · Node Wave 2.2.2** | [ZIP 다운로드](dist/macOS/NodeWave-2.2.2-macOS.zip?raw=1) | [macOS 설치 안내](docs/MACOS_INSTALL.md) |
-| 🪟 **Windows · Node Wave 2.2.2** | [ZIP 다운로드](dist/Windows/Windows-NodeWave-2.2.2.zip?raw=1) | [Windows 설치 안내](docs/Windows-NodeWave-2.2.2.md) |
+|**macOS · Node Wave 2.2.2** | [ZIP 다운로드](dist/macOS/NodeWave-2.2.2-macOS.zip?raw=1) | [macOS 설치 안내](docs/MACOS_INSTALL.md) |
+|**Windows · Node Wave 2.2.2** | [ZIP 다운로드](dist/Windows/Windows-NodeWave-2.2.2.zip?raw=1) | [Windows 설치 안내](docs/Windows-NodeWave-2.2.2.md) |
 
 두 ZIP은 같은 변형 엔진과 전용 창을 사용합니다. 운영체제에 맞는 설치 안내만 다릅니다. 성능 모드나 화질 차이는 없습니다
 
